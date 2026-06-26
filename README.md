@@ -63,6 +63,62 @@ python3 -m approve_and_build_tool.raw_cli status  --project . --session <uuid>
 
 Requires the `claude` CLI on PATH and Python 3 (standard library only).
 
+## Raw CLI / integration (driving it without the chat REPL)
+
+`raw_cli` is the machine surface. Each subcommand prints a **JSON result object to
+stdout**; live agent text is streamed to **stderr** (so it never pollutes the JSON).
+Put `--no-stream` *before* the subcommand to silence the stderr stream.
+
+### Result object (stdout)
+
+Always present:
+
+| field | meaning |
+|---|---|
+| `session_id` | the session UUID (capture this from `start`) |
+| `current_state` | `PRIMARY` (conversing) or `WORK` (a fork is applying work) |
+| `staged_proposal` | the parsed proposal dict, or `null` if nothing is staged |
+| `branch_name` | the local session branch the tool commits to |
+
+Added depending on the call:
+
+| field | when |
+|---|---|
+| `primary_reply` | `start`, `chat` (in PRIMARY), and `approve` that commits — the primary's text |
+| `work_reply` | `approve` that enters WORK, and `chat` while in WORK — the fork's text |
+| `ok` + `entered: "WORK"` | `approve` that launched a fork |
+| `ok: false` + `reason: "no_work_staged"` | `approve` in PRIMARY with nothing staged (no agent is called) |
+| `committed_sha` | `approve` that committed the fork's work |
+
+### Flags
+
+- `start --session-id <uuid>` — supply your own session UUID (else one is generated).
+- `start --executor-permission {acceptEdits|skip-permissions}` — fork posture (default `acceptEdits`).
+- `--no-stream` (global, before the subcommand) — do not stream agent text to stderr.
+
+### Driving one chunk (the approve-twice rhythm)
+
+```bash
+# 1) Start: primary proposes; capture session_id and check staged_proposal != null
+python3 -m approve_and_build_tool.raw_cli start --project . --message "<plan + first ask>"
+
+# 2) (optional) converse until a proposal is staged
+python3 -m approve_and_build_tool.raw_cli chat --project . --session <uuid> --message "..."
+
+# 3) Approve #1 -> enters WORK; the fork applies the staged proposal
+python3 -m approve_and_build_tool.raw_cli approve --project . --session <uuid>
+
+# 3a) (optional) talk to the fork to tweak before accepting
+python3 -m approve_and_build_tool.raw_cli chat --project . --session <uuid> --message "rename X to Y"
+
+# 4) Approve #2 -> commits on the session branch, returns to PRIMARY, primary reviews + proposes next
+python3 -m approve_and_build_tool.raw_cli approve --project . --session <uuid>
+```
+
+So **two `approve` calls bracket a chunk**: the first runs the fork, the second
+commits it and wakes the primary. Abandoned fork session ids are recorded in
+`fork_session_id_log` in the session's `state.json` for later inspection.
+
 ## Tests
 
 ```bash
