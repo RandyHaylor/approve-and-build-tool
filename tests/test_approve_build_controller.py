@@ -124,6 +124,12 @@ class ControllerTests(unittest.TestCase):
         log = git_workspace_guard._run_git(self.project, ["log", "--oneline"])
         self.assertIn("approve-and-build: chunk one", log)
 
+        # The abandoned fork's id was logged for later inspection; the active
+        # forked_session_id is cleared after accept.
+        persisted = session_store.load_session(self.project, sid)
+        self.assertEqual(len(persisted["fork_session_id_log"]), 1)
+        self.assertIsNone(persisted["forked_session_id"])
+
     def test_chat_in_work_mode_talks_to_fork(self):
         controller = self._make(["plan\n" + _proposal_block("c1")])
         started = controller.start(self.project, "go")

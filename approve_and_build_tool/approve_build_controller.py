@@ -89,6 +89,7 @@ class ApproveBuildController:
             return self._result(state, ok=False, reason="no_work_staged")
         forked_session_id = str(uuid.uuid4())
         state["forked_session_id"] = forked_session_id
+        state.setdefault("fork_session_id_log", []).append(forked_session_id)
         state["current_state"] = self._store.STATE_WORK
         self._store.save_session(state)  # persist before the long-running fork
         reply = self._forked_executor.run_forked_executor(

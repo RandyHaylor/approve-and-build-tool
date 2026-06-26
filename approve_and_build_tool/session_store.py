@@ -45,6 +45,10 @@ def create_session(project_path, branch_name, primary_session_id=None, session_i
         "current_state": STATE_PRIMARY,
         "staged_proposal": None,
         "forked_session_id": None,
+        # Append-only history of every fork session id ever spawned for this
+        # session. Forks are abandoned on accept; their ids are kept here so the
+        # user/implementer can resume and inspect them later (we never prompt that).
+        "fork_session_id_log": [],
         "executor_permission": executor_permission,
     }
     os.makedirs(session_dir(project_path, session_id), exist_ok=True)
